@@ -1,0 +1,6 @@
+name = Giphy Search
+description = Search content from Giphy.
+package = Custom
+core = 7.x
+
+dependencies[] = giphy

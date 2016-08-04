@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * @file
+ * Giphy Search module code.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function giphy_search_menu() {
+  $items['giphy-search'] = array(
+    'type' => MENU_NORMAL_ITEM,
+    'title' => 'Giphy Search',
+    'description' => 'Configure Giphy integration settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('giphy_search_search_form'),
+    'access arguments' => array('access content'),
+  );
+
+  return $items;
+}
+
+/**
+ * Giphy Search form.
+ */
+function giphy_search_search_form($form, &$form_state) {
+  $form['#id'] = drupal_html_id('giphy_search_form');
+  $form['#type'] = 'fieldset';
+
+  $search = (isset($form_state['input']['keywords'])) ? $form_state['input']['keywords'] : NULL;
+
+  $form['giphy_search']['keywords'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Search Giphy content'),
+    '#placeholder' => t('Enter your search text here'),
+  );
+
+  $form['giphy_search']['search'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search'),
+    '#action' => 'search',
+    '#depth' => 2,
+    '#name' => drupal_html_id('giphy_search'),
+  );
+
+  //$form['giphy_search']['search']['#ajax']['callback'] = 'giphy_search_ajax';
+  //$form['giphy_search']['search']['#ajax']['wrapper'] = $form['#id'];
+  $form['search']['search']['#submit'] = TRUE;
+
+  if ($search) {
+    $matches = giphy_search($search);
+    foreach ($matches as $giphy) {
+      dpm($giphy);
+    }
+  }
+
+  return $form;
+}
+
+function giphy_search_search_form_submit($form, &$form_state) {
+  $keywords = filter_xss($form_state['values']['keywords']);
+  if (!empty($keywords)) {
+  	drupal_set_message(t('You searched for ' . $keywords));
+  }
+}
