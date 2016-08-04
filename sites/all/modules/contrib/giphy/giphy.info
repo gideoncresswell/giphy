@@ -1,0 +1,23 @@
+name = Giphy
+description = Integrates content from Giphy.
+core = 7.x
+
+configure = admin/config/services/giphy
+
+files[] = includes/GiphyLoader.inc
+files[] = includes/GiphyLoaderBase.inc
+files[] = includes/GiphyLoaderCache.inc
+files[] = includes/GiphyLoaderDatabase.inc
+
+files[] = tests/GiphyBaseTestCase.test
+files[] = tests/GiphyFieldTestCase.test
+files[] = tests/GiphyFilterTestCase.test
+
+stylesheets[all][] = giphy.css
+
+; Information added by Drupal.org packaging script on 2015-11-12
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "giphy"
+datestamp = "1447367210"
+

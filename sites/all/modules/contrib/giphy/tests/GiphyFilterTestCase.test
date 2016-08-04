@@ -1,0 +1,155 @@
+<?php
+
+class GiphyFilterTestCase extends GiphyBaseTestCase {
+
+  protected $privileged_user;
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Giphy Filter',
+      'description' => 'Verifies Giphy input filter/text formatter functionality.',
+      'group' => 'Giphy',
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp($modules = array()) {
+    // Enable any modules required for the test. This should be an array of
+    // module names.
+    parent::setUp(array('giphy_filter'));
+
+    $format = new stdClass();
+    $format->format = 'giphy_no_link';
+    $format->name = 'Giphy original, no link';
+    $format->filters['giphy_filter_giphy']['status'] = 1;
+    $format->filters['giphy_filter_giphy']['settings'] = array(
+      'image' => 'original',
+      'link' => 'no',
+    );
+    filter_format_save($format);
+
+    $format = new stdClass();
+    $format->format = 'giphy_link_current';
+    $format->name = 'Giphy downsized_still, link current tab';
+    $format->filters['giphy_filter_giphy']['status'] = 1;
+    $format->filters['giphy_filter_giphy']['settings'] = array(
+      'image' => 'downsized_still',
+      'link' => 'current',
+    );
+    filter_format_save($format);
+
+    $format = new stdClass();
+    $format->format = 'giphy_link_new';
+    $format->name = 'Giphy fixed_height, link new tab';
+    $format->filters['giphy_filter_giphy']['status'] = 1;
+    $format->filters['giphy_filter_giphy']['settings'] = array(
+      'image' => 'fixed_height',
+      'link' => 'new',
+    );
+    filter_format_save($format);
+
+    $this->createPrivilegedUser(array('create article content', 'edit own article content'));
+  }
+
+  /**
+   * Test to verify that the formatter renders appropriately.
+   */
+  public function testFilterRendering() {
+    $field = 'field-name-body';
+
+    // Giphy rendering, no link, original.
+    $node = new stdClass();
+    $node->type = 'article';
+    $node->title = __FUNCTION__;
+    $node->uid = $this->privileged_user->uid;
+    $node->language = LANGUAGE_NONE;
+
+    $node->body[LANGUAGE_NONE][0]['value'] = 'Text[giphy Fps1AJ4gLnEUo]Text';
+    $node->body[LANGUAGE_NONE][0]['format'] = 'giphy_no_link';
+    $node->body[LANGUAGE_NONE][0]['summary'] = '';
+
+    node_save($node);
+
+    $this->drupalLogin($this->privileged_user);
+    $this->drupalGet("node/{$node->nid}");
+
+    $img = $this->findGiphyImage($field);
+    $this->assertFalse(empty($img), 'Giphy image present in giphy_no_link format');
+    if ($img) {
+      $attrs = $img->attributes();
+      $this->assertEqual($attrs['height'], 250, 'field_giphy_no_link height');
+      $this->assertEqual($attrs['width'], 433, 'field_giphy_no_link width');
+    }
+    $link = $this->findGiphyImageLink($field);
+    $this->assertTrue(empty($link), 'No link present in giphy_no_link format');
+    $attr = $this->findGiphyAttr($field);
+    $this->assertFalse(empty($attr), 'Attribution link present in giphy_no_link format');
+
+    // Giphy rendering, link opens in current tab, downsized_still.
+    $node = new stdClass();
+    $node->type = 'article';
+    $node->title = __FUNCTION__;
+    $node->uid = $this->privileged_user->uid;
+    $node->language = LANGUAGE_NONE;
+
+    $node->body[LANGUAGE_NONE][0]['value'] = 'Text[giphy Fps1AJ4gLnEUo]Text';
+    $node->body[LANGUAGE_NONE][0]['format'] = 'giphy_link_current';
+    $node->body[LANGUAGE_NONE][0]['summary'] = '';
+
+    node_save($node);
+
+    $this->drupalLogin($this->privileged_user);
+    $this->drupalGet("node/{$node->nid}");
+
+    $img = $this->findGiphyImage($field);
+    $this->assertFalse(empty($img), 'Giphy image present in giphy_link_current format');
+    if ($img) {
+      $attrs = $img->attributes();
+      $this->assertEqual($attrs['height'], 144, 'giphy_link_current height');
+      $this->assertEqual($attrs['width'], 250, 'giphy_link_current width');
+    }
+    $link = $this->findGiphyImageLink($field);
+    $this->assertFalse(empty($link), 'Link present in giphy_link_current format');
+    if ($link) {
+      $attrs = $link->attributes();
+      $this->assertTrue(empty($attrs['target']), 'No target on giphy_link_current link');
+    }
+    $attr = $this->findGiphyAttr($field);
+    $this->assertFalse(empty($attr), 'Attribution link present in giphy_link_current format');
+
+    // Giphy rendering, link opens in new tab, fixed_height.
+    $node = new stdClass();
+    $node->type = 'article';
+    $node->title = __FUNCTION__;
+    $node->uid = $this->privileged_user->uid;
+    $node->language = LANGUAGE_NONE;
+
+    $node->body[LANGUAGE_NONE][0]['value'] = 'Text[giphy Fps1AJ4gLnEUo]Text';
+    $node->body[LANGUAGE_NONE][0]['format'] = 'giphy_link_new';
+    $node->body[LANGUAGE_NONE][0]['summary'] = '';
+
+    node_save($node);
+
+    $this->drupalLogin($this->privileged_user);
+    $this->drupalGet("node/{$node->nid}");
+
+    $img = $this->findGiphyImage($field);
+    $this->assertFalse(empty($img), 'Giphy image present in giphy_link_new format');
+    if ($img) {
+      $attrs = $img->attributes();
+      $this->assertEqual($attrs['height'], 200, 'giphy_link_new height');
+      $this->assertEqual($attrs['width'], 346, 'giphy_link_new width');
+    }
+    $link = $this->findGiphyImageLink($field);
+    $this->assertFalse(empty($link), 'Link present in giphy_link_new format');
+    if ($link) {
+      $attrs = $link->attributes();
+      $this->assertTrue(!empty($attrs['target']) && $attrs['target'] == '_blank', 'Target on giphy_link_new is "_blank"');
+    }
+    $attr = $this->findGiphyAttr($field);
+    $this->assertFalse(empty($attr), 'Attribution link present in giphy_link_new format');
+  }
+
+}

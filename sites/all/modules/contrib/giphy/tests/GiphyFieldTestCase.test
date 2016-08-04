@@ -1,0 +1,144 @@
+<?php
+
+class GiphyFieldTestCase extends GiphyBaseTestCase {
+
+  protected $privileged_user;
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Giphy Fields',
+      'description' => 'Verifies Giphy field, field widget, and field formatter functionality.',
+      'group' => 'Giphy',
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp($modules = array()) {
+    // Enable any modules required for the test. This should be an array of
+    // module names.
+    parent::setUp(array('giphy_field'));
+
+    // Add fields to article content type.
+    $field['field_name'] = 'field_giphy_no_link';
+    $field['type'] = 'giphy';
+    field_create_field($field);
+
+    $instance['field_name'] = 'field_giphy_no_link';
+    $instance['entity_type'] = 'node';
+    $instance['bundle'] = 'article';
+    $instance['display']['default']['settings'] = array(
+      'image' => 'original',
+      'link' => 'no',
+    );
+    field_create_instance($instance);
+
+    $field['field_name'] = 'field_giphy_link_current';
+    $field['type'] = 'giphy';
+    field_create_field($field);
+
+    $instance['field_name'] = 'field_giphy_link_current';
+    $instance['entity_type'] = 'node';
+    $instance['bundle'] = 'article';
+    $instance['display']['default']['settings'] = array(
+      'image' => 'downsized_still',
+      'link' => 'current',
+    );
+    field_create_instance($instance);
+
+    $field['field_name'] = 'field_giphy_link_new';
+    $field['type'] = 'giphy';
+    field_create_field($field);
+
+    $instance['field_name'] = 'field_giphy_link_new';
+    $instance['entity_type'] = 'node';
+    $instance['bundle'] = 'article';
+    $instance['display']['default']['settings'] = array(
+      'image' => 'fixed_height',
+      'link' => 'new',
+    );
+    field_create_instance($instance);
+
+    $this->createPrivilegedUser(array('create article content', 'edit own article content'));
+  }
+
+  /**
+   * Test to verify that the formatter renders appropriately.
+   */
+  public function testFormatterRendering() {
+
+    $node = new stdClass();
+    $node->type = 'article';
+    $node->title = __FUNCTION__;
+    $node->uid = $this->privileged_user->uid;
+    $node->language = LANGUAGE_NONE;
+
+    $node->field_giphy_no_link[LANGUAGE_NONE][0]['value'] = 'TEAa6rnazO8y4';
+    $node->field_giphy_link_current[LANGUAGE_NONE][0]['value'] = 'EqR5NS1WqGxlm';
+    $node->field_giphy_link_new[LANGUAGE_NONE][0]['value'] = 'bmtt1xodPc1dC';
+
+    node_save($node);
+
+    $this->drupalLogin($this->privileged_user);
+    $this->drupalGet("node/{$node->nid}");
+
+    // Field field_giphy_no_link.
+    $field = 'field-name-field-giphy-no-link';
+    $img = $this->findGiphyImage($field);
+    $attrs = $img->attributes();
+    $this->assertEqual($attrs['height'], 219, 'field_giphy_no_link height');
+    $this->assertEqual($attrs['width'], 450, 'field_giphy_no_link width');
+
+    // Check for no link.
+    $link = $this->findGiphyImageLink($field);
+    $this->assertTrue(empty($link), 'No link present in field_giphy_no_link');
+
+    // Check for attribution.
+    $attr = $this->findGiphyAttr($field);
+    $this->assertFalse(empty($attr), 'Attribution link present in field_giphy_no_link');
+
+    // Field field_giphy_link_current.
+    $field = 'field-name-field-giphy-link-current';
+    $img = $this->findGiphyImage($field);
+    $attrs = $img->attributes();
+    $this->assertEqual($attrs['height'], 140, 'field_giphy_link_current height');
+    $this->assertEqual($attrs['width'], 250, 'field_giphy_link_current width');
+
+    // Check for link.
+    $link = $this->findGiphyImageLink($field);
+    $this->assertFalse(empty($link), 'Link present in field_giphy_link_current');
+
+    // Verify link in current tab.
+    if ($link) {
+      $attrs = $link->attributes();
+      $this->assertTrue(empty($attrs['target']), 'No target on field_giphy_link_current link');
+    }
+
+    // Check for attribution.
+    $attr = $this->findGiphyAttr($field);
+    $this->assertFalse(empty($attr), 'Attribution link present in field_giphy_link_current');
+
+    // Field field_giphy_link_new.
+    $field = 'field-name-field-giphy-link-new';
+    $img = $this->findGiphyImage($field);
+    $attrs = $img->attributes();
+    $this->assertEqual($attrs['height'], 200, 'field_giphy_link_new height');
+    $this->assertEqual($attrs['width'], 258, 'field_giphy_link_new width');
+
+    // Check for link.
+    $link = $this->findGiphyImageLink($field);
+    $this->assertFalse(empty($link), 'Link present in field_giphy_link_current');
+
+    // Check for link in new tab.
+    if ($link) {
+      $attrs = $link->attributes();
+      $this->assertTrue(!empty($attrs['target']) && $attrs['target'] == '_blank', 'Target on field_giphy_link_current is "_blank"');
+    }
+
+    // Check for attribution.
+    $attr = $this->findGiphyAttr($field);
+    $this->assertFalse(empty($attr), 'Attribution link present in field_giphy_link_new');
+  }
+
+}

@@ -1,0 +1,14 @@
+.giphy {
+    display: inline-block;
+    position: relative;
+}
+
+.giphy img {
+    display: block;
+}
+
+.giphy-attribution {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+}

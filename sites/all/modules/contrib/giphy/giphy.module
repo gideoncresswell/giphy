@@ -1,0 +1,172 @@
+<?php
+
+/**
+ * @file
+ * Giphy module code.
+ */
+
+define('GIPHY_DEFAULT_LOADER', 'GiphyLoaderCache');
+define('GIPHY_HOST', 'http://api.giphy.com');
+define('GIPHY_PUBLIC_KEY', 'dc6zaTOxFJmzC');
+
+/**
+ * Implements hook_menu().
+ */
+function giphy_menu() {
+  $items['admin/config/services/giphy'] = array(
+    'type' => MENU_NORMAL_ITEM,
+    'title' => 'Giphy',
+    'description' => 'Configure Giphy integration settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('giphy_admin_config_form'),
+    'access arguments' => array('administer site configuration'),
+    'file' => 'giphy.admin.inc'
+  );
+
+  return $items;
+}
+
+/**
+ * Query the Giphy API.
+ *
+ * @param string $endpoint
+ *   The endpoint which is being queried.
+ * @param string $data
+ *   Data to append to the API url path.
+ * @param array $params
+ *   Query string parameters used in the request.
+ *
+ * @return array
+ *   Data returned from the Giphy API.
+ *
+ * @throws Exception
+ */
+function giphy_api_query($endpoint, $data = '', $params = array()) {
+
+  // Add the API key.
+  $params['api_key'] = variable_get('giphy_api_key', GIPHY_PUBLIC_KEY);
+
+  $url = GIPHY_HOST . "/v1/{$endpoint}";
+  if (!empty($data)) {
+    $url .= "/" . urlencode($data);
+  }
+
+  // Add in the query params.
+  $query = drupal_http_build_query($params);
+  if ($query) {
+    $url .= '?' . $query;
+  }
+
+  $result = drupal_http_request($url);
+
+  if ($result->code != 200) {
+    throw new Exception(sprintf('Error querying Giphy API: %s', $result->error));
+  }
+
+  return json_decode($result->data);
+}
+
+/**
+ * Load Giphy content.
+ *
+ * @param string $giphy_id
+ *
+ * @return stdClass
+ */
+function giphy_load($giphy_id) {
+  $loader = giphy_get_loader();
+  return $loader->load($giphy_id);
+}
+
+/**
+ * Load Giphy content.
+ *
+ * @param array $giphy_ids
+ *
+ * @return array
+ */
+function giphy_load_multiple($giphy_ids) {
+  $loader = giphy_get_loader();
+  return $loader->loadMutliple($giphy_ids);
+}
+
+/**
+ * Gets the Giphy loader specified by configuration.
+ *
+ * @return GiphyLoader
+ */
+function giphy_get_loader() {
+  $loader = &drupal_static(__FUNCTION__);
+
+  if (!$loader) {
+    $class = variable_get('giphy_loader_class', GIPHY_DEFAULT_LOADER);
+    $loader = new $class();
+  }
+
+  return $loader;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function giphy_theme() {
+  $theme['giphy'] = array(
+    'variables' => array('giphy' => NULL, 'image' => 'original' ,'link' => FALSE),
+    'file' => 'giphy.theme.inc',
+  );
+
+  return $theme;
+}
+
+/**
+ * Options for selecting which size, etc to display.
+ */
+function giphy_image_options() {
+  $options['original'] = t('Original');
+
+  $options['fixed_height'] = 'fixed_height';
+  $options['fixed_height_still'] = 'fixed_height_still';
+  $options['fixed_height_downsampled'] = 'fixed_height_downsampled';
+  $options['fixed_width'] = 'fixed_width';
+  $options['fixed_width_still'] = 'fixed_width_still';
+  $options['fixed_width_downsampled'] = 'fixed_width_downsampled';
+  $options['fixed_height_small'] = 'fixed_height_small';
+  $options['fixed_height_small_still'] = 'fixed_height_small_still';
+  $options['fixed_width_small'] = 'fixed_width_small';
+  $options['fixed_width_small_still'] = 'fixed_width_small_still';
+  $options['downsized'] = 'downsized';
+  $options['downsized_still'] = 'downsized_still';
+  $options['downsized_large'] = 'downsized_large';
+  $options['original_still'] = 'original_still';
+
+  return $options;
+}
+
+/**
+ * Query the Giphy search endpoint.
+ *
+ * @param $query
+ *   Search keywords query.
+ * @param int $limit
+ *   Number to limit results.
+ *
+ * @return array
+ *   Array of matching Giphys, keyed by id.
+ */
+function giphy_search($query, $limit = 10) {
+  $matches = array();
+  $loader = giphy_get_loader();
+
+  $data = giphy_api_query('gifs/search', '', array('q' => $query));
+
+  foreach ($data->data as $giphy) {
+    // Save the data so we can use it again later.
+    $loader->save($giphy->id, $giphy);
+
+    if (count($matches) < $limit) {
+      $matches[$giphy->id] = $giphy;
+    }
+  }
+
+  return $matches;
+}

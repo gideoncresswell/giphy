@@ -1,0 +1,77 @@
+<?php
+
+abstract class GiphyBaseTestCase extends DrupalWebTestCase {
+
+  protected $privileged_user;
+
+  /**
+   * Create a user with specified permissions.
+   *
+   * @param array $permissions
+   */
+  protected function createPrivilegedUser($permissions = array()) {
+    $this->privileged_user = $this->drupalCreateUser($permissions);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function setUp($modules = array()) {
+    parent::setUp($modules);
+  }
+
+  /**
+   * Find the link on a Giphy image.
+   *
+   * @param $field_selector
+   *   String a class name used to find the field.
+   *
+   * @return SimpleXMLElement
+   *   The first matching element.
+   */
+  protected function findGiphyImage($field_selector) {
+    $args = array(
+      ':field_selector' => $field_selector,
+      ':img_selector' => 'giphy-image',
+    );
+    $links = $this->xpath('//*[contains(@class, :field_selector)]//*[contains(@class, :img_selector)]//img', $args);
+    return reset($links);
+  }
+
+  /**
+   * Find the link on a Giphy image.
+   *
+   * @param $field_selector
+   *   String a class name used to find the field.
+   *
+   * @return SimpleXMLElement
+   *   The first matching element.
+   */
+  protected function findGiphyImageLink($field_selector) {
+    $args = array(
+      ':field_selector' => $field_selector,
+      ':img_selector' => 'giphy-image',
+    );
+    $links = $this->xpath('//*[contains(@class, :field_selector)]//*[contains(@class, :img_selector)]//a', $args);
+    return reset($links);
+  }
+
+  /**
+   * Find the attribution on a Giphy.
+   *
+   * @param $field_selector
+   *   String a class name used to find the field.
+   *
+   * @return SimpleXMLElement
+   *   The first matching element.
+   */
+  protected function findGiphyAttr($field_selector) {
+    $args = array(
+      ':field_selector' => $field_selector,
+      ':attr_selector' => 'giphy-attribution',
+    );
+    $attrs = $this->xpath('//*[contains(@class, :field_selector)]//a[@class=:attr_selector]', $args);
+    return reset($attrs);
+  }
+
+}

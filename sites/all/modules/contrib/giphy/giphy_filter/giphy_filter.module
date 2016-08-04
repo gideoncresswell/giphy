@@ -1,0 +1,84 @@
+<?php
+
+/**
+ * @file
+ * Giphy Filter module code.
+ */
+
+/**
+ * Implements hook_filter_info().
+ */
+function giphy_filter_filter_info() {
+  $filters['giphy_filter_giphy'] = array(
+    'title' => t('Embed Giphy content'),
+    'description' => t('Allows you to embed Giphy content into the text.'),
+    'process callback' => 'giphy_filter_filter_process',
+    'settings callback' => 'giphy_filter_filter_settings',
+    'default settings' => array('image' => 'original', 'link' => 'no'),
+    'tips callback' => 'giphy_filter_filter_tips',
+    'cache' => FALSE,
+  );
+
+  return $filters;
+}
+/**
+ * Implements callback_filter_process().
+ *
+ * Process callback for Giphy filter.
+ */
+function giphy_filter_filter_process($text, $filter) {
+  $image = $filter->settings['image'];
+  $link = $filter->settings['link'];
+
+  if (preg_match_all('/\[giphy ([^]]*)\]/', $text, $matches, PREG_SET_ORDER)) {
+    foreach ($matches as $match) {
+      $giphy = giphy_load(trim($match[1]));
+      $giphy = theme('giphy', array('giphy' => $giphy, 'image' => $image, 'link' => $link));
+      $text = str_replace($match[0], $giphy, $text);
+    }
+  }
+
+  return $text;
+}
+
+/**
+ * Implements callback_filter_tips().
+ *
+ * Provides help for the Giphy filter.
+ */
+function giphy_filter_filter_tips() {
+  $params = array('!token' => '<pre>[giphy Fps1AJ4gLnEUo]</pre>');
+  $output = t('Embed Giphy content using a token like this: !token', $params);
+  return $output;
+}
+
+/**
+ * Implements callback_filter_settings().
+ *
+ * Filter settings callback for the Giphy content filter.
+ */
+function giphy_filter_filter_settings($form, &$form_state, $filter, $format, $defaults) {
+  $filter->settings += $defaults;
+
+  $settings['image'] = array(
+    '#type' => 'select',
+    '#title' => t('Image'),
+    '#default_value' => $filter->settings['image'],
+    '#description' => t('The size of the embedded Giphy images.'),
+    '#options' => giphy_image_options(),
+  );
+
+  $settings['link'] = array(
+    '#type' => 'select',
+    '#title' => t('Link'),
+    '#default_value' => $filter->settings['link'],
+    '#description' => t('Link the Giphy to its source.'),
+    '#options' => array(
+      'no' => t('No'),
+      'current' => t('Open in current tab'),
+      'new' => t('Open in new tab'),
+    ),
+  );
+
+  return $settings;
+}

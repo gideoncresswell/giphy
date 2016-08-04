@@ -1,0 +1,332 @@
+<?php
+
+/**
+ * @file
+ * Giphy Field module code.
+ */
+
+/**
+ * Implements hook_field_info().
+ */
+function giphy_field_field_info() {
+  $info['giphy'] = array(
+    'label' => t('Giphy'),
+    'description' => t('Reference Giphy content.'),
+    'settings' => array(),
+    'instance_settings' => array(),
+    'default_widget' => 'giphy',
+    'default_formatter' => 'giphy',
+  );
+
+  return $info;
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function giphy_field_field_widget_info() {
+  $info['giphy'] = array(
+    'label' => t('Giphy Search'),
+    'field types' => array('giphy'),
+    'settings' => array('size' => 60),
+    'behaviors' => array(
+      'multiple values' => FIELD_BEHAVIOR_CUSTOM,
+      'default value' => FIELD_BEHAVIOR_DEFAULT,
+    ),
+  );
+
+  return $info;
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function giphy_field_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+
+  $element['#id'] = drupal_html_id($element['#field_name']);
+  $element['#type'] = 'fieldset';
+
+  $field_state = field_form_get_state($element['#field_parents'], $element['#field_name'], $element['#language'], $form_state);
+  $values = (isset($field_state['values'])) ? $field_state['values'] : $items;
+  $search = (isset($field_state['search'])) ? $field_state['search'] : NULL;
+
+  $element['values']['#theme'] = 'giphy_field_items_table';
+
+  foreach ($values as $delta => $item) {
+    $element['values'][$delta]['value']['#type'] = 'value';
+    $element['values'][$delta]['value']['#value'] = $item['value'];
+
+    $element['values'][$delta]['preview']['#theme'] = 'giphy';
+    $element['values'][$delta]['preview']['#giphy'] = giphy_load($item['value']);
+    $element['values'][$delta]['preview']['#image'] = 'fixed_height_small_still';
+
+    $element['values'][$delta]['remove']['#type'] = 'submit';
+    $element['values'][$delta]['remove']['#value'] = t('Remove');
+    $element['values'][$delta]['remove']['#action'] = 'remove';
+    $element['values'][$delta]['remove']['#depth'] = 3;
+    $element['values'][$delta]['remove']['#delta'] = $delta;
+    $element['values'][$delta]['remove']['#name'] = drupal_html_id($element['#field_name'] . '-' . 'remove');
+    $element['values'][$delta]['remove']['#ajax']['callback'] = 'giphy_field_giphy_search_widget_ajax';
+    $element['values'][$delta]['remove']['#ajax']['wrapper'] = $element['#id'];
+    $element['values'][$delta]['remove']['#submit'] = TRUE;
+  }
+
+  $element['search']['#prefix'] = '<div class="giphy-search-widget">';
+  $element['search']['#suffix'] = '</div>';
+
+  $element['search']['keywords'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Search for a Giphy'),
+  );
+  $element['search']['keywords']['#attributes']['class'][] = 'giphy-search-keywords';
+
+  $element['search']['search'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search'),
+    '#action' => 'search',
+    '#depth' => 2,
+    '#name' => drupal_html_id($element['#field_name'] . '-' . 'search'),
+  );
+  $element['search']['search']['#ajax']['callback'] = 'giphy_field_giphy_search_widget_ajax';
+  $element['search']['search']['#ajax']['wrapper'] = $element['#id'];
+  $element['search']['search']['#submit'] = TRUE;
+
+  $element['search']['results']['#theme'] = 'giphy_field_search_table';
+
+  if ($search) {
+    $matches = giphy_search($search);
+    foreach ($matches as $giphy) {
+      $element['search']['results'][$giphy->id]['preview']['#theme'] = 'giphy';
+      $element['search']['results'][$giphy->id]['preview']['#giphy'] = $giphy;
+      $element['search']['results'][$giphy->id]['preview']['#image'] = 'fixed_width_downsampled';
+      $element['search']['results'][$giphy->id]['button']['#type'] = 'submit';
+      $element['search']['results'][$giphy->id]['button']['#value'] = t('Add');
+      $element['search']['results'][$giphy->id]['button']['#action'] = 'add';
+      $element['search']['results'][$giphy->id]['button']['#depth'] = 4;
+      $element['search']['results'][$giphy->id]['button']['#giphy_id'] = $giphy->id;
+      $element['search']['results'][$giphy->id]['button']['#name'] = drupal_html_id($giphy->id . '-' . 'add');
+      $element['search']['results'][$giphy->id]['button']['#ajax']['callback'] = 'giphy_field_giphy_search_widget_ajax';
+      $element['search']['results'][$giphy->id]['button']['#ajax']['wrapper'] = $element['#id'];
+      $element['search']['results'][$giphy->id]['button']['#submit'] = TRUE;
+    }
+  }
+
+  $element['#process'][] = 'giphy_field_giphy_search_widget_process';
+  $element['#element_validate'][] = 'giphy_field_giphy_search_widget_validate';
+
+  return $element;
+}
+
+/**
+ * Process Giphy search widget.
+ */
+function giphy_field_giphy_search_widget_process(&$element, &$form_state, $form) {
+  $limit = array($element['#parents']);
+
+  // Set #limit_validation_errors on remove buttons.
+  foreach ($element as $name => $val) {
+    if (is_numeric($name)) {
+      $element[$name]['remove']['#limit_validation_errors'] = $limit;
+    }
+  }
+
+  // Set #limit_validation_errors on search keyword button.
+  $element['search']['search']['#limit_validation_errors'] = $limit;
+
+  // Set #limit_validation_errors on add buttons.
+  foreach ($element['search']['results'] as $id => $result) {
+    if (!empty($element['search']['results'][$id]['button'])) {
+      $element['search']['results'][$id]['button']['#limit_validation_errors'] = $limit;
+    }
+  }
+
+  return $element;
+}
+
+/**
+ * Validate submitted Giphy search input.
+ */
+function giphy_field_giphy_search_widget_validate(&$element, &$form_state, $form) {
+  $field_state = field_form_get_state($element['#field_parents'], $element['#field_name'], $element['#language'], $form_state);
+
+  // Get the submitted values, flatten.
+  $values = drupal_array_get_nested_value($form_state['values'], $element['#parents']);
+  $keywords = $values['search']['keywords'];
+  $items = array();
+  foreach ($values['values'] as $delta => $value) {
+    $items[$delta] = $value['value'];
+  }
+
+  // Determine which input was triggered.
+  $trigger = $form_state['triggering_element'];
+
+  // Add the Giphy.
+  if (!empty($trigger['#action']) && $trigger['#action'] == 'add') {
+    $items[] = $trigger['#giphy_id'];
+    $form_state['rebuild'] = TRUE;
+  }
+
+  // Attempt to add the Giphy.
+  $search = FALSE;
+  if (!empty($trigger['#action']) && $trigger['#action'] == 'search') {
+    $search = $keywords;
+    $form_state['rebuild'] = TRUE;
+  }
+
+  // Remove the specified Giphy.
+  if (!empty($trigger['#action']) && $trigger['#action'] == 'remove') {
+    if (isset($items[$trigger['#delta']])) {
+      unset($items[$trigger['#delta']]);
+      $form_state['rebuild'] = TRUE;
+    }
+  }
+
+  // Clean up and expand the values array.
+  $values = array_values(array_unique($items));
+  foreach ($values as $delta => $value) {
+    $values[$delta] = array('value' => $value);
+  }
+
+  // Limit number of values to configured cardinality.
+  if ($field_state['field']['cardinality'] > 0) {
+    $values = array_slice($values, 0 , $field_state['field']['cardinality']);
+  }
+
+  // Set the values back onto the form submission.
+  form_set_value($element, $values, $form_state);
+  $field_state['values'] = $values;
+  if ($search) {
+    $field_state['search'] = $search;
+  }
+  field_form_set_state($element['#field_parents'], $element['#field_name'], $element['#language'], $form_state, $field_state);
+}
+
+/**
+ * AJAX callback for handling removal of Giphys from the search widget.
+ *
+ * Pluck the entire field widget out of the form and return it
+ */
+function giphy_field_giphy_search_widget_ajax($form, &$form_state) {
+  $trigger = $form_state['triggering_element'];
+  $parents = array_slice($trigger['#parents'], 0, count($trigger['#parents']) - $trigger['#depth']);
+  return drupal_array_get_nested_value($form, $parents);
+}
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function giphy_field_field_formatter_info() {
+  $info['giphy'] = array(
+    'label' => t('Default'),
+    'field types' => array('giphy'),
+    'settings' => array(
+      'image' => 'original',
+      'link' => 'no',
+    ),
+  );
+
+  return $info;
+}
+
+/**
+ * Implements hook_field_formatter_settings_form().
+ */
+function giphy_field_field_formatter_settings_form($field, $instance, $view_mode, $form, &$form_state) {
+  $display = $instance['display'][$view_mode];
+  $settings = $display['settings'];
+
+  $element['image'] = array(
+    '#type' => 'select',
+    '#title' => t('Image'),
+    '#default_value' => $settings['image'],
+    '#description' => t('The size of the embedded Giphy images.'),
+    '#options' => giphy_image_options(),
+  );
+
+  $element['link'] = array(
+    '#type' => 'select',
+    '#title' => t('Link'),
+    '#default_value' => $settings['link'],
+    '#description' => t('Link the Giphy to its source.'),
+    '#options' => array(
+      'no' => t('No'),
+      'current' => t('Open in current tab'),
+      'new' => t('Open in new tab'),
+    ),
+  );
+
+  return $element;
+}
+
+/**
+ * Implements hook_field_formatter_settings_summary().
+ */
+function giphy_field_field_formatter_settings_summary($field, $instance, $view_mode) {
+  $display = $instance['display'][$view_mode];
+  $settings = $display['settings'];
+
+  $summary = array();
+
+  $options = giphy_image_options();
+  $summary[] = t('Image: @image', array('@image' => $options[$settings['image']]));
+
+  switch ($settings['link']) {
+    case 'no':
+      $summary[] = t('No link');
+      break;
+    case 'current':
+      $summary[] = t('Opens in current tab');
+      break;
+    case 'new':
+      $summary[] = t('Opens new tab');
+      break;
+  }
+
+  return implode('<br />', $summary);
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function giphy_field_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+  $settings = $display['settings'];
+
+  foreach ($items as $delta => $item) {
+    $element[$delta] = array(
+      '#theme' => 'giphy',
+      '#giphy' => giphy_load($item['value']),
+      '#image' => $settings['image'],
+      '#link' => $settings['link'],
+    );
+  }
+
+  return $element;
+}
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function giphy_field_field_is_empty($item, $field) {
+  if (empty($item['value']) || !giphy_load($item['value'])) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function giphy_field_theme() {
+  $theme['giphy_field_items_table'] = array(
+    'render element' => 'table',
+    'file' => 'giphy_field.theme.inc',
+  );
+
+  $theme['giphy_field_search_table'] = array(
+    'render element' => 'table',
+    'file' => 'giphy_field.theme.inc',
+  );
+
+  return $theme;
+}
