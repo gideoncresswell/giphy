@@ -62,10 +62,10 @@ function giphy_search_search_form($form, &$form_state) {
 
 
   $form['giphy_search']['results'] = array(
-    '#type' => 'markup',
-    '#prefix' => '<table>',
-    '#suffix' => '</table>',
+    '#theme' => 'table',
   );
+
+  $header = array(t('GIF'), t('ID'), t('Embded URL'), t('Source'), t('Rating'));
 
 
   //$form['giphy_search']['search']['#ajax']['callback'] = 'giphy_search_ajax';
@@ -73,26 +73,31 @@ function giphy_search_search_form($form, &$form_state) {
 
   if ($search) {
 
-    $form['giphy_search']['results']['header'] = array(
-      '#markup' => '<thead>
-        <tr>
-          <th>GIF</th>
-          <th>ID</th>
-          <th>Embded URL</th>
-          <th>Source</th>
-          <th>Rating</th>
-        </tr>
-      </thead>',
-    );
+    $header = array(t('GIF'), t('ID'), t('Embded URL'), t('Source'), t('Rating'));
 
     $matches = giphy_search($search);
+    $rows = array();
     foreach ($matches as $giphy) {
-      $form['giphy_search']['results'][$giphy->id]['preview']['#theme'] = 'giphy';
-      $form['giphy_search']['results'][$giphy->id]['preview']['#giphy'] = $giphy;
-      $form['giphy_search']['results'][$giphy->id]['preview']['#image'] = 'fixed_width_downsampled';
-    }
-  }
+      $row = array();
+      $gif = array();
 
+      $gif['#theme'] = 'giphy';
+      $gif['#giphy'] = $giphy;
+      $gif['#image'] = 'fixed_height_small_still';
+
+      $row[] = drupal_render($gif);
+      $row[] = $giphy->id;
+      $row[] = $giphy->embed_url;
+      $row[] = $giphy->source;
+      $row[] = $giphy->rating;
+
+      $rows[] = $row;
+    }
+
+    $form['giphy_search']['results']['#header'] = $header;
+    $form['giphy_search']['results']['#rows'] =   $rows;
+
+  }
   return $form;
 }
 
