@@ -25,6 +25,22 @@ function giphy_search_menu() {
  * Giphy Search form.
  */
 function giphy_search_search_form($form, &$form_state) {
+/*
+  // Get the path to the module
+  $path = drupal_get_path('module', 'giphy_search');
+  // Attach the CSS and JS to the form
+  $form['#attached'] = array(
+  'css' => array(
+    'type' => 'file',
+      'data' => $path . '/css/giphy_search_theme.css',
+    ),
+    'js' => array(
+      'type' => 'file',
+		  'data' => $path . '/js/giphy_search_theme.js',
+	  ),
+  );
+*/
+
   $form['#id'] = drupal_html_id('giphy_search_form');
   $form['#type'] = 'fieldset';
 
@@ -44,14 +60,36 @@ function giphy_search_search_form($form, &$form_state) {
     '#name' => drupal_html_id('giphy_search'),
   );
 
+
+  $form['giphy_search']['results'] = array(
+    '#type' => 'markup',
+    '#prefix' => '<table>',
+    '#suffix' => '</table>',
+  );
+
+
   //$form['giphy_search']['search']['#ajax']['callback'] = 'giphy_search_ajax';
   //$form['giphy_search']['search']['#ajax']['wrapper'] = $form['#id'];
-  $form['search']['search']['#submit'] = TRUE;
 
   if ($search) {
+
+    $form['giphy_search']['results']['header'] = array(
+      '#markup' => '<thead>
+        <tr>
+          <th>GIF</th>
+          <th>ID</th>
+          <th>Embded URL</th>
+          <th>Source</th>
+          <th>Rating</th>
+        </tr>
+      </thead>',
+    );
+
     $matches = giphy_search($search);
     foreach ($matches as $giphy) {
-      dpm($giphy);
+      $form['giphy_search']['results'][$giphy->id]['preview']['#theme'] = 'giphy';
+      $form['giphy_search']['results'][$giphy->id]['preview']['#giphy'] = $giphy;
+      $form['giphy_search']['results'][$giphy->id]['preview']['#image'] = 'fixed_width_downsampled';
     }
   }
 
@@ -62,5 +100,21 @@ function giphy_search_search_form_submit($form, &$form_state) {
   $keywords = filter_xss($form_state['values']['keywords']);
   if (!empty($keywords)) {
   	drupal_set_message(t('You searched for ' . $keywords));
+  	$form_state['rebuild'] = TRUE;
   }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function giphy_search_theme() {
+  $theme['giphy_search_table'] = array(
+    'render element' => 'table',
+  );
+
+  return $theme;
+}
+
+function theme_giphy_search_table($variables) {
+  dpm($variables);
 }
